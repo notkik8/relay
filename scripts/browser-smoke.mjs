@@ -1,0 +1,126 @@
+import { createRequire } from 'node:module'
+import { mkdir, readFile } from 'node:fs/promises'
+import { randomBytes } from 'node:crypto'
+import { resolve } from 'node:path'
+
+const require = createRequire(import.meta.url)
+const { chromium, firefox, webkit } = require(process.env.RELAY_PLAYWRIGHT_DIR ?? 'playwright')
+const [base = 'http://127.0.0.1:8080', screenshots = '/tmp/relay-smoke', browserName = 'chromium'] = process.argv.slice(2)
+const browserType = { chromium, firefox, webkit }[browserName]
+const password = 'RelayBrowser123!'
+const stamp = randomBytes(4).toString('hex')
+const owner = `author_${stamp}`
+const friend = `friend_${stamp}`
+const title = `Осенний вечер ${stamp}`
+const failures = []
+const browser = await browserType.launch({ headless: true })
+const ownerContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+const guestContext = await browser.newContext({ viewport: { width: 360, height: 880 }, hasTouch: true })
+const page = await ownerContext.newPage()
+const guest = await guestContext.newPage()
+for (const current of [page, guest]) current.on('pageerror', (error) => failures.push(error.message))
+const wait = (current, name, level = 1) => current.getByRole('heading', { name, level, exact: true }).waitFor()
+const button = (current, name) => current.getByRole('button', { name, exact: true })
+const link = (current, name) => current.getByRole('link', { name, exact: true })
+const check = (condition, message) => { if (!condition) throw new Error(message) }
+const sample = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGOMznrDwMDAxAAGABPlAbWYn/J3AAAAAElFTkSuQmCC', 'base64')
+
+async function register(current, username, next) {
+  await current.goto(base + '/register?next=' + encodeURIComponent(next))
+  await current.getByLabel('Электронная почта').fill(`${username}@example.org`)
+  await current.getByLabel('Имя пользователя').fill(username)
+  await current.getByLabel('Пароль').fill(password)
+  await button(current, 'Зарегистрироваться').click()
+  await current.waitForURL(base + next)
+}
+
+async function addCatalog(current, searchLabel, query, itemName) {
+  await current.getByRole('searchbox', { name: searchLabel }).fill(query)
+  await button(current, 'Искать в каталоге').click()
+  await button(current, 'Добавить ' + itemName).click()
+  await current.getByText('Добавлено · ' + itemName, { exact: true }).waitFor()
+}
+
+try {
+  await mkdir(screenshots, { recursive: true })
+  await page.goto(base + '/collections')
+  await page.waitForLoadState('networkidle')
+  await wait(page, 'Осенний вечер')
+  await page.screenshot({ path: resolve(screenshots, `${browserName}-feed.png`) })
+  await register(page, owner, '/new')
+  await page.getByRole('textbox', { name: 'Название' }).fill(title)
+  await button(page, 'Создать подборку').click()
+  await wait(page, title)
+  const privateUrl = page.url().replace(/\/edit$/, '')
+  await button(page, 'Добавить первый элемент').click()
+  await addCatalog(page, 'Поиск трека', 'Autumn Leaves', 'Autumn Leaves')
+  await button(page, 'Фильм').click()
+  await addCatalog(page, 'Поиск фильма', 'Она', 'Она')
+  await button(page, 'Изображение').click()
+  const fixturePath = process.env.RELAY_TEST_PNG
+  const buffer = fixturePath ? await readFile(fixturePath) : sample
+  await page.getByLabel('Файл изображения').setInputFiles({ name: 'fixture.png', mimeType: 'image/png', buffer })
+  await page.getByRole('textbox', { name: 'Название' }).fill('Образец')
+  await button(page, 'Добавить изображение').click()
+  await page.getByText('Добавлено · Образец', { exact: true }).waitFor()
+  await button(page, 'Закрыть').click()
+  await wait(page, 'Образец', 3)
+  const movie = page.locator('.item-card').filter({ has: page.getByRole('heading', { name: 'Она', exact: true }) })
+  await button(movie, 'Раньше').focus()
+  await page.keyboard.press('Enter')
+  await page.getByText('«Она» · позиция 1', { exact: true }).waitFor()
+  await button(movie, 'Заметка и теги').click()
+  await page.getByLabel('Заметка', { exact: true }).fill('Для тихого вечера')
+  await page.getByRole('dialog').getByRole('textbox', { name: /^Теги/ }).fill('кино, осень')
+  await button(page, 'Сохранить').click()
+  await page.getByText('Для тихого вечера', { exact: true }).waitFor()
+  await button(page, 'Настройки').click()
+  await page.getByLabel('Видимость').selectOption('link')
+  await button(page, 'Сохранить изменения').click()
+  await page.waitForURL((url) => url.href !== privateUrl + '/edit')
+  const shareUrl = page.url().replace(/\/edit$/, '')
+  await link(page, 'Смотреть подборку').click()
+  await button(page, 'Поделиться').click()
+  await page.getByRole('status').filter({ hasText: /Ссылка скопирована|http/ }).waitFor()
+  await guest.goto(shareUrl)
+  await wait(guest, title)
+  await guest.getByRole('heading', { name: 'На доске 3', level: 2 }).waitFor()
+  check(await guest.evaluate(() => document.documentElement.scrollWidth <= 360), 'Горизонтальная прокрутка на 360 px')
+  await guest.screenshot({ path: resolve(screenshots, `${browserName}-mobile.png`) })
+  await register(guest, friend, '/new')
+  await guest.getByRole('textbox', { name: 'Название' }).fill('Сохранённое кино')
+  await button(guest, 'Создать подборку').click()
+  await wait(guest, 'Сохранённое кино')
+  const savedUrl = guest.url().replace(/\/edit$/, '')
+  await guest.goto(shareUrl)
+  await wait(guest, title)
+  const guestMovie = guest.locator('.item-card').filter({ has: guest.getByRole('heading', { name: 'Она', exact: true }) })
+  await button(guestMovie, 'Сохранить в подборку').click()
+  await button(guest, 'Сохранённое кино').click()
+  await link(guest, 'Открыть «Сохранённое кино»').waitFor()
+  await button(guest, 'Закрыть').click()
+  await guest.getByRole('textbox', { name: 'Комментарий', exact: true }).fill('Сохранил фильм на вечер.')
+  await button(guest, 'Отправить').click()
+  await guest.getByText('Сохранил фильм на вечер.', { exact: true }).waitFor()
+  await guest.goto(savedUrl)
+  await wait(guest, 'Она', 3)
+  await page.goto(shareUrl + '/edit')
+  await wait(page, title)
+  await button(page, 'Настройки').click()
+  await page.getByLabel('Имя пользователя для приглашения').fill(friend)
+  await button(page, 'Пригласить').click()
+  await page.getByText('Ожидает ответа', { exact: true }).waitFor()
+  await page.getByLabel('Видимость').selectOption('private')
+  await button(page, 'Сохранить изменения').click()
+  await page.waitForURL(privateUrl + '/edit')
+  check((await guest.request.get(shareUrl.replace('/b/', '/api/v1/boards/'))).status() === 404, 'Старая ссылка осталась открыта')
+  await guest.goto(base + '/notifications')
+  await button(guest, 'Принять').click()
+  await link(guest, title).click()
+  await link(guest, 'Редактировать').click()
+  await button(guest, 'Добавить').waitFor()
+  check(failures.length === 0, failures.join('\n'))
+  console.log(`${browserName}: регистрация, 3 типа медиа, клавиатура, публикация, 360 px, копия, комментарий, приглашение OK`)
+} finally {
+  await browser.close()
+}

@@ -1,0 +1,102 @@
+[
+  {
+    "id": "im-gymnopedie",
+    "kind": "track",
+    "topic": "sound",
+    "title": "Гимнопедия № 1",
+    "originalTitle": "Gymnopedie No 1",
+    "creator": "Kevin MacLeod",
+    "credit": "\"Gymnopedie No 1\" Kevin MacLeod (incompetech.com)",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "https://incompetech.com/music/royalty-free/index.html?keywords=Gymnopedie%20No%201",
+    "image": null,
+    "audio": "/discovery/audio/im-gymnopedie.mp3",
+    "audioType": "audio/mpeg",
+    "excerpt": true,
+    "ratio": 1,
+    "year": null,
+    "description": "",
+    "tags": [
+      "инструментальная",
+      "фортепиано",
+      "классика",
+      "тишина"
+    ]
+  },
+  {
+    "id": "im-carefree",
+    "kind": "track",
+    "topic": "sound",
+    "title": "Carefree",
+    "originalTitle": "Carefree",
+    "creator": "Kevin MacLeod",
+    "credit": "\"Carefree\" Kevin MacLeod (incompetech.com)",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "https://incompetech.com/music/royalty-free/index.html?keywords=Carefree",
+    "image": null,
+    "audio": "/discovery/audio/im-carefree.mp3",
+    "audioType": "audio/mpeg",
+    "excerpt": true,
+    "ratio": 1,
+    "year": null,
+    "description": "",
+    "tags": [
+      "инструментальная",
+      "акустика",
+      "укулеле",
+      "ритм"
+    ]
+  },
+  {
+    "id": "im-chill-wave",
+    "kind": "track",
+    "topic": "sound",
+    "title": "Chill Wave",
+    "originalTitle": "Chill Wave",
+    "creator": "Kevin MacLeod",
+    "credit": "\"Chill Wave\" Kevin MacLeod (incompetech.com)",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "https://incompetech.com/music/royalty-free/index.html?keywords=Chill%20Wave",
+    "image": null,
+    "audio": "/discovery/audio/im-chill-wave.mp3",
+    "audioType": "audio/mpeg",
+    "excerpt": true,
+    "ratio": 1,
+    "year": null,
+    "description": "",
+    "tags": [
+      "инструментальная",
+      "электроника",
+      "ритм",
+      "атмосфера"
+    ]
+  },
+  {
+    "id": "im-bittersweet",
+    "kind": "track",
+    "topic": "sound",
+    "title": "Bittersweet",
+    "originalTitle": "Bittersweet",
+    "creator": "Kevin MacLeod",
+    "credit": "\"Bittersweet\" Kevin MacLeod (incompetech.com)",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "https://incompetech.com/music/royalty-free/index.html?keywords=Bittersweet",
+    "image": null,
+    "audio": "/discovery/audio/im-bittersweet.mp3",
+    "audioType": "audio/mpeg",
+    "excerpt": true,
+    "ratio": 1,
+    "year": null,
+    "description": "",
+    "tags": [
+      "инструментальная",
+      "классика",
+      "фортепиано",
+      "атмосфера"
+    ]
+  }
+]

@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Relay — Поворот ленты</title>
+  <path fill="#1f281f" fill-rule="evenodd" d="M216 36V62C216 88 195 110 169 110H101A16 16 0 0 0 101 142H154C191 142 220 171 220 208V220H171V207A18 18 0 0 0 153 189H99A63 63 0 0 1 99 63H153A16 16 0 0 0 169 47V36ZM93 78V95H122V78ZM136 78V95H165V78ZM94 157V174H122V157ZM136 157V174H164V157Z"/>
+</svg>
