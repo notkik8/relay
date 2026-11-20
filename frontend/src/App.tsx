@@ -20,14 +20,15 @@ export default function App() {
       <Route path="published" />
       <Route path="pin/:materialId" />
     </Route>
+    <Route path="login" element={<AuthPage key="login" />} />
+    <Route path="register" element={<AuthPage key="register" mode="register" />} />
+    <Route path="recover" element={<AuthPage key="recover" mode="recover" />} />
+    <Route path="verify-email" element={<AuthPage key="verify" mode="verify" />} />
+    <Route path="resend-email" element={<AuthPage key="resend" mode="resend" />} />
     <Route element={<Layout />}>
       <Route path="collections" element={<FeedPage />} />
       <Route path="following" element={<FeedPage mode="following" />} />
       <Route path="mine" element={<FeedPage mode="mine" />} />
-      <Route path="login" element={<AuthPage key="login" />} />
-      <Route path="register" element={<AuthPage key="register" mode="register" />} />
-      <Route path="verify-email" element={<AuthPage key="verify" mode="verify" />} />
-      <Route path="resend-email" element={<AuthPage key="resend" mode="resend" />} />
       <Route path="create-pin" element={<NewPinPage />} />
       <Route path="folder/:collectionId" element={<CollectionPage />} />
       <Route path="search" element={<SearchPage />} />

@@ -2,7 +2,7 @@ from hashlib import sha256
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
@@ -26,7 +26,7 @@ async def current_user(request: Request, db: SessionDep) -> User | None:
         .where(
             LoginSession.token_hash == session_hash(token),
             LoginSession.expires > func.now(),
-            User.email_verified_at.is_not(None),
+            or_(User.email.is_(None), User.email_verified_at.is_not(None)),
             ~User.blocked,
             ~User.deleted,
         )

@@ -16,13 +16,14 @@ class User(Base, TimestampMixin):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=identifier)
-    email: Mapped[str] = mapped_column(String(254), unique=True)
+    email: Mapped[str | None] = mapped_column(String(254), unique=True)
     username: Mapped[str] = mapped_column(String(32), unique=True)
     name: Mapped[str] = mapped_column(String(80))
     password: Mapped[str]
     bio: Mapped[str] = mapped_column(default="")
     avatar: Mapped[str | None]
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    recovery_code_hash: Mapped[str | None] = mapped_column(String(64))
     admin: Mapped[bool] = mapped_column(default=False)
     blocked: Mapped[bool] = mapped_column(default=False)
     deleted: Mapped[bool] = mapped_column(default=False)

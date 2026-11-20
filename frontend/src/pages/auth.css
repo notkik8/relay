@@ -1,0 +1,93 @@
+.relay-top-inner.relay-auth-nav {
+  grid-template-columns: 1fr auto;
+}
+
+.relay-auth-nav .relay-quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.relay-auth-nav .relay-quiet:hover { background: var(--tint); }
+
+.relay-board.relay-auth-area {
+  display: grid;
+  justify-items: center;
+  padding-block: clamp(1.5rem, 8vh, 5rem) 3rem;
+}
+
+.relay-auth-panel {
+  width: min(100%, 27rem);
+  padding: clamp(1.25rem, 4vw, 2rem);
+  border: 1px solid var(--rule);
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: 0 4px 16px #2533200d;
+}
+
+.relay-auth-panel h1 {
+  margin-bottom: 1.5rem;
+  font-size: clamp(1.875rem, 4vw, 2.25rem);
+  line-height: 1.12;
+  letter-spacing: -.045em;
+  font-weight: 700;
+}
+
+.relay-auth-form, .relay-auth-help { display: grid; gap: 1rem; }
+.relay-auth-field, .relay-auth-form label { display: grid; gap: .4rem; }
+.relay-auth-form label { font-size: .875rem; font-weight: 650; }
+.relay-auth-form small, .relay-auth-panel p { color: var(--subtle); font-size: .875rem; font-weight: 500; }
+
+.relay-auth-form input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: .625rem .75rem;
+  border: 1px solid var(--rule);
+  border-radius: .5rem;
+  background: var(--tint);
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.relay-auth-form input:focus {
+  border-color: #456751;
+  background: var(--surface);
+}
+
+.relay-auth-challenge { min-width: 0; }
+.relay-auth-help { justify-items: start; gap: .5rem; }
+.relay-auth-action { width: 100%; }
+.relay-auth-panel .relay-auth-error { color: #98392a; }
+
+.relay-auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: .5rem 1rem;
+  margin-top: 1rem;
+  padding-top: .5rem;
+  border-top: 1px solid var(--rule);
+}
+
+.relay-auth-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--green);
+  font-size: .875rem;
+  font-weight: 650;
+}
+
+.relay-auth-links a:hover { text-decoration: underline; }
+
+.relay-auth-code {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .625rem;
+  border-radius: .5rem;
+  background: var(--tint);
+}
+
+.relay-auth-code code { overflow-wrap: anywhere; font-size: .875rem; }

@@ -26,22 +26,12 @@ const check = (condition, message) => { if (!condition) throw new Error(message)
 const sample = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGOMznrDwMDAxAAGABPlAbWYn/J3AAAAAElFTkSuQmCC', 'base64')
 
 async function register(current, username, next) {
-  const email = `${username}@example.org`
   await current.goto(base + '/register?next=' + encodeURIComponent(next))
-  await current.getByLabel('Электронная почта').fill(email)
-  await current.getByLabel('Имя пользователя').fill(username)
+  await current.getByLabel('Ник', { exact: true }).fill(username)
   await current.getByLabel('Пароль').fill(password)
   await button(current, 'Зарегистрироваться').click()
-  await wait(current, 'Проверьте почту')
-  const mailbox = (process.env.RELAY_MAILPIT_URL ?? 'http://127.0.0.1:8025').replace(/\/$/, '')
-  const { messages } = await fetch(`${mailbox}/api/v1/search?${new URLSearchParams({ query: `to:${email}` })}`).then((response) => response.json())
-  check(messages?.length, 'Verification email missing from Mailpit')
-  const { Text } = await fetch(`${mailbox}/api/v1/message/${messages[0].ID}`).then((response) => response.json())
-  const link = Text?.match(/\/verify-email#[A-Za-z0-9_-]{43}/)?.[0]
-  check(link, 'Verification link missing from email')
-  await current.goto(base + link)
-  await current.getByLabel('Пароль').fill(password)
-  await button(current, 'Подтвердить почту').click()
+  await wait(current, 'Сохраните код восстановления')
+  await button(current, 'Продолжить').click()
   await current.waitForURL(base + next)
 }
 

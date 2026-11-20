@@ -198,12 +198,8 @@ label small { color: var(--muted); font-weight: 450; }
 .segmented button { display: inline-flex; align-items: center; justify-content: center; gap: .42rem; border: 1px solid transparent; border-radius: .64rem; color: var(--muted); font-size: .86rem; font-weight: 650; padding: .55rem .75rem; min-height: 2.45rem; transition: background-color 140ms, color 140ms, transform 160ms; }
 .segmented button[aria-pressed="true"] { color: var(--accent); background: #fff; border-color: #e7e9f3; box-shadow: 0 1px 3px #171b3210; }
 
-.auth-wrap { display: grid; justify-content: center; padding-block: clamp(1rem, 6vw, 4rem); }
-.auth-panel { width: min(30rem, calc(100vw - 3rem)); }
-.auth-panel h1, .form-page h1 { font-size: clamp(2rem, 4vw, 2.8rem); margin-bottom: 1.25rem; }
-.auth-panel .form-stack .primary { width: 100%; margin-top: .3rem; }
-.auth-alt { margin-top: 1.2rem; color: var(--muted); font-size: .9rem; }
-.auth-alt a, .comments-section > p a, .form-stack > p a { color: var(--accent); font-weight: 650; }
+.form-page h1 { font-size: clamp(2rem, 4vw, 2.8rem); margin-bottom: 1.25rem; }
+.comments-section > p a, .form-stack > p a { color: var(--accent); font-weight: 650; }
 .form-page { display: grid; gap: 1rem; max-width: 41rem; margin-inline: auto; }
 .form-page .subtle-label { margin-bottom: .45rem; }
 .form-page h1 { margin-bottom: .55rem; }

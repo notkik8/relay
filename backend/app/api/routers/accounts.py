@@ -10,9 +10,18 @@ from starlette.concurrency import run_in_threadpool
 from app.api.deps import COOKIE, Account, SessionDep, Viewer, session_hash
 from app.core.config import get_settings
 from app.models.entities import EmailVerification, LoginSession, User
-from app.schemas.inputs import Credentials, ProfilePatch, Registration, VerificationInput
+from app.schemas.inputs import (
+    Credentials,
+    HandleCredentials,
+    HandleRegistration,
+    PasswordRecovery,
+    ProfilePatch,
+    Registration,
+    VerificationInput,
+)
 from app.services.images import file_response, upload_image
 from app.services.mail import deliver_verification, require_mail
+from app.services.turnstile import registration_site_key, verify_registration
 
 router = APIRouter(tags=["accounts"])
 passwords = PasswordHash.recommended()
@@ -60,6 +69,7 @@ async def issue_session(db: SessionDep, request: Request, response: Response, us
         )
     )
     await db.commit()
+    response.headers["Cache-Control"] = "no-store"
     response.set_cookie(
         COOKIE,
         token,
@@ -69,6 +79,59 @@ async def issue_session(db: SessionDep, request: Request, response: Response, us
         samesite="lax",
     )
     return account_data(user)
+
+
+@router.get("/accounts/registration")
+async def registration_config():
+    return {"turnstile_site_key": registration_site_key()}
+
+
+@router.post("/accounts/handle", status_code=201)
+async def register_handle(
+    data: HandleRegistration, db: SessionDep, request: Request, response: Response
+):
+    await verify_registration(data.turnstile_token)
+    username = data.username.lower()
+    recovery_code = token_urlsafe(24)
+    user = User(
+        username=username,
+        name=username,
+        password=await run_in_threadpool(passwords.hash, data.password),
+        recovery_code_hash=session_hash(recovery_code),
+    )
+    db.add(user)
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(409, "Этот ник уже занят") from exc
+    account = await issue_session(db, request, response, user)
+    return {"account": account, "recovery_code": recovery_code}
+
+
+@router.post("/accounts/recovery")
+async def recover_password(
+    data: PasswordRecovery, db: SessionDep, request: Request, response: Response
+):
+    user = await db.scalar(
+        select(User)
+        .where(
+            User.username == data.username.lower(),
+            User.recovery_code_hash == session_hash(data.recovery_code),
+            User.email.is_(None),
+            ~User.blocked,
+            ~User.deleted,
+        )
+        .with_for_update()
+    )
+    if user is None:
+        raise HTTPException(401, "Проверьте ник и код восстановления.")
+    recovery_code = token_urlsafe(24)
+    user.recovery_code_hash = session_hash(recovery_code)
+    user.password = await run_in_threadpool(passwords.hash, data.password)
+    await db.execute(delete(LoginSession).where(LoginSession.user_id == user.id))
+    account = await issue_session(db, request, response, user)
+    return {"account": account, "recovery_code": recovery_code}
 
 
 async def pending_verification(db: SessionDep, email: str) -> EmailVerification | None:
@@ -176,21 +239,24 @@ async def verify(data: VerificationInput, db: SessionDep, request: Request, resp
 
 
 @router.post("/sessions")
-async def login(data: Credentials, db: SessionDep, request: Request, response: Response):
-    email = data.email.lower()
-    user = await db.scalar(select(User).where(User.email == email))
-    verification = None if user else await db.get(EmailVerification, email)
-    valid = await run_in_threadpool(
-        passwords.verify,
-        data.password,
-        (user.password if user else verification.password if verification else None) or dummy_hash,
-    )
+async def login(
+    data: Credentials | HandleCredentials, db: SessionDep, request: Request, response: Response
+):
+    if isinstance(data, HandleCredentials):
+        user = await db.scalar(select(User).where(User.username == data.username.lower()))
+        verification = None
+    else:
+        email = data.email.lower()
+        user = await db.scalar(select(User).where(User.email == email))
+        verification = None if user else await db.get(EmailVerification, email)
+    password_hash = user.password if user else verification.password if verification else None
+    valid = await run_in_threadpool(passwords.verify, data.password, password_hash or dummy_hash)
     if not valid or (user and (user.blocked or user.deleted)):
         raise HTTPException(401, "Неверные данные входа или аккаунт недоступен")
-    if user is None or user.email_verified_at is None:
+    if user is None or (user.email is not None and user.email_verified_at is None):
         raise HTTPException(403, "Подтвердите почту, чтобы войти в Relay")
     await db.refresh(user, with_for_update=True)
-    if user.blocked or user.deleted:
+    if user.blocked or user.deleted or user.password != password_hash:
         raise HTTPException(401, "Аккаунт недоступен")
     return await issue_session(db, request, response, user)
 

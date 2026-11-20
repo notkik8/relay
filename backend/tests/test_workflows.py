@@ -3,11 +3,13 @@ import io
 import os
 from contextlib import AsyncExitStack
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from uuid import uuid4
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, MockTransport, Response
 from PIL import Image
+from pydantic import HttpUrl, SecretStr
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -18,7 +20,7 @@ from app.db.session import get_session
 from app.main import app
 from app.models import Base
 from app.models.entities import EmailVerification, Item, Media, User
-from app.services import mail
+from app.services import mail, turnstile
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("RELAY_TEST_DATABASE_URL"),
@@ -166,6 +168,64 @@ async def test_email_confirmation_required_expires_and_is_single_use(relay, monk
     assert public["username"] == "new_user" and "email" not in public
     assert (await guest.delete("/api/v1/sessions/current")).status_code == 204
     assert (await guest.post("/api/v1/sessions", json=credentials)).status_code == 200
+
+
+async def test_handle_signup_checks_turnstile_and_rotates_recovery_code(relay, monkeypatch):
+    clients, _ = relay
+    guest, second_session = clients["guest"], clients["reader"]
+    settings = get_settings()
+    monkeypatch.setattr(settings, "relay_public_url", HttpUrl("https://relay.example"))
+    monkeypatch.setattr(settings, "turnstile_site_key", "1x00000000000000000000AA")
+    monkeypatch.setattr(
+        settings, "turnstile_secret_key", SecretStr("1x0000000000000000000000000000000AA")
+    )
+    config = "/api/v1/accounts/registration"
+    signup = "/api/v1/accounts/handle"
+    login = "/api/v1/sessions"
+    credentials = {"username": "No_Mail", "password": PASSWORD}
+    payload = {**credentials, "turnstile_token": "challenge-token"}
+    assert (await guest.get(config)).json() == {"turnstile_site_key": None}
+    assert (await guest.post(signup, json=payload)).status_code == 503
+
+    monkeypatch.setattr(settings, "turnstile_site_key", "public-key")
+    monkeypatch.setattr(settings, "turnstile_secret_key", SecretStr("private-key"))
+    verification = {"success": True, "hostname": "elsewhere.example", "action": "register"}
+
+    def siteverify(request):
+        assert str(request.url) == turnstile.SITEVERIFY
+        assert b"challenge-token" in request.content
+        return Response(200, json=verification)
+
+    monkeypatch.setattr(
+        turnstile.httpx, "AsyncClient", partial(AsyncClient, transport=MockTransport(siteverify))
+    )
+    assert (await guest.get(config)).json() == {"turnstile_site_key": "public-key"}
+    assert (await guest.post(signup, json=payload)).status_code == 400
+    verification.update(hostname="relay.example", action="other")
+    assert (await guest.post(signup, json=payload)).status_code == 400
+    verification.update(action="register", success=False)
+    assert (await guest.post(signup, json=payload)).status_code == 400
+    verification.update(success=True)
+    response = await guest.post(signup, json=payload)
+    assert response.status_code == 201, response.text
+    code = response.json()["recovery_code"]
+    assert response.headers["cache-control"] == "no-store"
+    assert (await guest.get("/api/v1/accounts/me")).json()["email"] is None
+    assert (await guest.post(signup, json={**payload, "username": "no_mail"})).status_code == 409
+    assert (await second_session.post(login, json=credentials)).status_code == 200
+
+    recover = "/api/v1/accounts/recovery"
+    new_password = "NewRelayPassword456!"
+    reset = {**credentials, "password": new_password, "recovery_code": code}
+    response = await guest.post(recover, json=reset)
+    assert response.status_code == 200, response.text
+    assert response.json()["recovery_code"] != code
+    assert (await guest.post(recover, json=reset)).status_code == 401
+    assert (await second_session.get("/api/v1/accounts/me")).json() is None
+    assert (await guest.post(login, json=credentials)).status_code == 401
+    assert (
+        await guest.post(login, json={**credentials, "password": new_password})
+    ).status_code == 200
 
 
 async def test_public_pins_and_private_collections(relay):

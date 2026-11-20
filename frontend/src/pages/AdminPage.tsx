@@ -119,7 +119,7 @@ export default function AdminPage() {
           {data && <article className="panel compact admin-record">
             <Avatar person={data} />
             <h2>{data.name}</h2>
-            <p>@{data.username} · {data.email}</p>
+            <p>@{data.username}{data.email && <> · {data.email}</>}</p>
             <p>{data.bio}</p>
             <p className="muted">Подборок: {data.boards} · Комментариев: {data.comments}</p>
             {!data.admin && !data.deleted && <div className="inline-actions">

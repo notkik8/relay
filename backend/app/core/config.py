@@ -23,6 +23,8 @@ class Settings(BaseSettings):
         Path(__file__).resolve().parents[3] / "frontend/public/discovery/catalog.json"
     )
     relay_public_url: HttpUrl = HttpUrl("http://127.0.0.1:8080")
+    turnstile_site_key: str = ""
+    turnstile_secret_key: SecretStr = SecretStr("")
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_security: Literal["plain", "starttls", "tls"] = "starttls"

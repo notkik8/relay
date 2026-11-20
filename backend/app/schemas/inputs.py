@@ -26,6 +26,21 @@ class Credentials(Input):
     password: str = Field(min_length=1, max_length=128)
 
 
+class HandleCredentials(Input):
+    username: Handle
+    password: str = Field(min_length=1, max_length=128)
+
+
+class HandleRegistration(HandleCredentials):
+    password: str = Field(min_length=15, max_length=128)
+    turnstile_token: str = Field(min_length=1, max_length=2048)
+
+
+class PasswordRecovery(HandleCredentials):
+    password: str = Field(min_length=15, max_length=128)
+    recovery_code: Text = Field(pattern=r"^[A-Za-z0-9_-]{32}$")
+
+
 class VerificationInput(Input):
     token: str = Field(pattern=r"^[A-Za-z0-9_-]{43}$")
     password: str = Field(min_length=1, max_length=128)
