@@ -9,6 +9,7 @@ import type { Account, Board, Notice, Page, Person } from '../api/types'
 import { SignInLink } from '../components/BoardActions'
 import { FileForm } from '../components/BoardForms'
 import { Avatar, BoardGrid, Empty, Feedback, Loading, Modal } from '../components/UI'
+import { ProfileCollections, ProfilePins } from './PinPages'
 
 interface Profile {
   user: Person
@@ -24,6 +25,8 @@ export function ProfilePage() {
 }
 
 function ProfileView({ username }: { username: string }) {
+  const [params] = useSearchParams()
+  const tab = params.get('tab') ?? 'pins'
   const { data: account } = useSession()
   const query = useQuery({
     queryKey: ['profile', username],
@@ -39,7 +42,7 @@ function ProfileView({ username }: { username: string }) {
   if (query.isPending) return <Loading />
   if (!query.data) return <Empty title="Профиль недоступен"><Feedback error={query.error} /></Empty>
   const data = query.data
-  const own = account?.username === username
+  const own = account?.id === data.user.id
   const next = nextOffset === undefined ? data.boards.next_offset : nextOffset
   async function updated(user: Account) {
     cache.setQueryData(['session'], user)
@@ -68,7 +71,14 @@ function ProfileView({ username }: { username: string }) {
           {data.is_following ? 'Отписаться' : 'Подписаться'}</button> : <SignInLink>Войти, чтобы подписаться</SignInLink>}
     </section>
     <Feedback error={!editing ? error : null} />
-    <section>
+    <nav className="pin-tabs" aria-label="Разделы профиля">
+      {([['pins', 'Пины'], ['folders', 'Папки'], ['boards', 'Подборки']] as const).map(([key, label]) =>
+        <Link key={key} to={`?tab=${key}`} aria-current={tab === key ? 'page' : undefined}
+          className={`button${tab === key ? ' selected' : ''}`}>{label}</Link>)}
+    </nav>
+    {tab !== 'folders' && tab !== 'boards' && <ProfilePins username={data.user.username} own={own} />}
+    {tab === 'folders' && <ProfileCollections username={data.user.username} own={own} />}
+    {tab === 'boards' && <section>
       <div className="section-heading"><h2>Подборки</h2></div>
       {data.boards.items.length ? <BoardGrid boards={[...data.boards.items, ...extra]} />
         : <Empty title="Подборок пока нет">{own && <Link className="button primary" to="/new">Создать подборку</Link>}</Empty>}
@@ -81,7 +91,7 @@ function ProfileView({ username }: { username: string }) {
         } catch (cause) { setError(cause) }
         finally { setPending(false) }
       }}>Ещё подборки</button></div>}
-    </section>
+    </section>}
     {editing && <Modal title="Мой профиль" onClose={() => setEditing(false)}>
       <div className="form-stack settings">
         <form className="form-stack" onSubmit={async (event) => {

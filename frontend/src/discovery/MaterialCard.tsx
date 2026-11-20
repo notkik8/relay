@@ -14,7 +14,7 @@ export function MediaVisual({ material, eager = false, details = false }: {
   material: Material; eager?: boolean; details?: boolean
 }) {
   const [failed, setFailed] = useState<string[]>([])
-  const source = [details ? material.image : material.thumbnail, material.preview, material.image]
+  const source = [details && material.author ? material.image : material.thumbnail, material.preview, material.image]
     .find((url) => url && !failed.includes(url))
   if (material.kind === 'track' && !source) {
     const [base, vinyl, text] = albumColors[featuredTone[material.id] ?? Math.floor(hash(material.id) * albumColors.length)]
