@@ -120,7 +120,7 @@ export function CollectionPage() {
 
 function CollectionView({ id }: { id: string }) {
   const path = `/pin-collections/${id}`
-  const query = usePage<CollectionEntry>('pin-collection', path)
+  const query = usePage<CollectionEntry, CollectionDetail>('pin-collection', path)
   const session = useSession()
   const cache = useQueryClient()
   const navigate = useNavigate()
@@ -128,7 +128,7 @@ function CollectionView({ id }: { id: string }) {
   const [deleting, setDeleting] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<unknown>()
-  const data = query.data?.pages[0] as CollectionDetail | undefined
+  const data = query.data?.pages[0]
   if (query.isPending) return <Loading />
   if (!data) return <Empty title="Папка недоступна"><Feedback error={query.error} /></Empty>
   const collection = data.collection

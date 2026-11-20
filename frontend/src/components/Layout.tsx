@@ -14,6 +14,9 @@ export function Layout() {
   const client = useQueryClient()
   const [error, setError] = useState<unknown>()
   const next = encodeURIComponent(location.pathname + location.search)
+  const archivePage = /^\/(?:collections|following|mine|new|b|search|notifications|admin)(?:\/|$)/.test(location.pathname)
+  const createPath = archivePage ? '/new' : '/create-pin'
+  const createLabel = archivePage ? 'Создать подборку' : 'Создать пин'
 
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -39,7 +42,8 @@ export function Layout() {
         <nav className="primary-nav" aria-label="Разделы">
           <NavLink end to="/"><Compass size={17} />Обзор</NavLink>
           {user && <><NavLink to="/following"><UsersRound size={17} />Подписки</NavLink>
-            <NavLink to="/mine"><Layers3 size={17} />Мои подборки</NavLink></>}
+            {archivePage ? <NavLink to="/mine"><Layers3 size={17} />Мои подборки</NavLink>
+              : <Link to={`/u/${user.username}?tab=folders`}><Layers3 size={17} />Мои папки</Link>}</>}
         </nav>
         <form className="nav-search" role="search" onSubmit={search} key={location.search}>
           <Search size={17} aria-hidden="true" />
@@ -49,8 +53,8 @@ export function Layout() {
           <button className="visually-hidden" type="submit">Найти</button>
         </form>
         <div className="nav-actions">
-          <Link className="button primary create-button" aria-label="Создать подборку" to={user ? '/new' : '/login?next=%2Fnew'}>
-            <Plus size={18} /> <span className="create-long">Создать подборку</span><span className="create-short">Создать</span>
+          <Link className="button primary create-button" aria-label={createLabel} to={user ? createPath : `/login?${new URLSearchParams({ next: createPath })}`}>
+            <Plus size={18} /> <span className="create-long">{createLabel}</span><span className="create-short">Создать</span>
           </Link>
           {user ? <>
             <NavLink to="/notifications" className="icon-button" title="Уведомления" aria-label="Уведомления"><Bell size={20} /></NavLink>

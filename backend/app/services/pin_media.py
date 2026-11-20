@@ -11,7 +11,10 @@ from app.services.images import SECURITY_HEADERS
 
 MEDIA_LIMIT = 50 * 1024 * 1024
 AUDIO_TYPES = {
-    "mp3": "audio/mpeg", "wav": "audio/wav", "ogg": "audio/ogg", "flac": "audio/flac",
+    "mp3": "audio/mpeg",
+    "wav": "audio/wav",
+    "ogg": "audio/ogg",
+    "flac": "audio/flac",
 }
 VIDEO_TYPES = {"mp4": "video/mp4", "webm": "video/webm"}
 
@@ -30,7 +33,7 @@ def audio_extension(header: bytes) -> str | None:
                 return None
             offset = (offset << 7) | value
         offset += 10 + (10 if header[5] & 0x10 else 0)
-    frame = header[offset:offset + 4]
+    frame = header[offset : offset + 4]
     if len(frame) == 4 and frame[0] == 0xFF and frame[1] & 0xE6 == 0xE2:
         if frame[1] & 0x18 != 0x08 and frame[2] >> 4 not in (0, 15) and frame[2] & 0x0C != 0x0C:
             return "mp3"
@@ -39,7 +42,15 @@ def audio_extension(header: bytes) -> str | None:
 
 def video_extension(header: bytes) -> str | None:
     if header[4:8] == b"ftyp" and header[8:12] in (
-        b"isom", b"iso2", b"iso5", b"iso6", b"mp41", b"mp42", b"avc1", b"dash", b"MSNV",
+        b"isom",
+        b"iso2",
+        b"iso5",
+        b"iso6",
+        b"mp41",
+        b"mp42",
+        b"avc1",
+        b"dash",
+        b"MSNV",
     ):
         return "mp4"
     if header.startswith(b"\x1a\x45\xdf\xa3") and b"\x42\x82\x84webm" in header[:128]:

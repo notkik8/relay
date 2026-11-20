@@ -53,8 +53,11 @@ def pin_data(pin: Pin, author: User) -> dict:
         "source": media if pin.kind == "image" else "",
         "license": "",
         "licenseUrl": None,
-        "image": media if pin.kind == "image" else f"/api/v1/pins/{material_id}/cover"
-        if pin.cover else None,
+        "image": media
+        if pin.kind == "image"
+        else f"/api/v1/pins/{material_id}/cover"
+        if pin.cover
+        else None,
         "thumbnail": f"{media}?thumbnail=true" if pin.kind == "image" else None,
         "audio": media if pin.kind == "track" else None,
         "audioType": None,
@@ -71,8 +74,12 @@ def visible_pins():
 
 async def get_pin(db: SessionDep, material_id: str) -> tuple[Pin, User]:
     row = (
-        await db.execute(visible_pins().where(Pin.id == material_id.removeprefix(PIN_PREFIX)))
-    ).one_or_none() if material_id.startswith(PIN_PREFIX) else None
+        (
+            await db.execute(visible_pins().where(Pin.id == material_id.removeprefix(PIN_PREFIX)))
+        ).one_or_none()
+        if material_id.startswith(PIN_PREFIX)
+        else None
+    )
     if row is None:
         raise HTTPException(404, "Пин недоступен")
     return row[0], row[1]
@@ -88,19 +95,39 @@ async def pins(
 ):
     query = visible_pins()
     if ids is not None:
-        query = query.where(Pin.id.in_([key[len(PIN_PREFIX):] for key in ids
-                                       if key.startswith(PIN_PREFIX) and len(key) == 34]))
+        query = query.where(
+            Pin.id.in_(
+                [
+                    key[len(PIN_PREFIX) :]
+                    for key in ids
+                    if key.startswith(PIN_PREFIX) and len(key) == 34
+                ]
+            )
+        )
         limit = 60
     for word in q.split():
-        query = query.where(or_(*(column.icontains(word, autoescape=True) for column in (
-            Pin.title, Pin.description, User.name, User.username,
-        ))))
+        query = query.where(
+            or_(
+                *(
+                    column.icontains(word, autoescape=True)
+                    for column in (
+                        Pin.title,
+                        Pin.description,
+                        User.name,
+                        User.username,
+                    )
+                )
+            )
+        )
     return await pin_page(db, query, offset, limit)
 
 
 async def pin_page(db: SessionDep, query, offset: int, limit: int) -> dict:
-    rows = (await db.execute(query.order_by(Pin.created_at.desc(), Pin.id.desc())
-                             .offset(offset).limit(limit + 1))).all()
+    rows = (
+        await db.execute(
+            query.order_by(Pin.created_at.desc(), Pin.id.desc()).offset(offset).limit(limit + 1)
+        )
+    ).all()
     return page([pin_data(pin, author) for pin, author in rows], offset, limit)
 
 
@@ -125,8 +152,15 @@ async def publish_pin(
     cover_key = await upload_image(cover) if cover else None
     pin_id = identifier()
     key = await upload_image(file) if kind == "image" else await upload_av(file, kind, pin_id)
-    pin = Pin(id=pin_id, owner_id=user.id, kind=kind, title=title, description=description,
-              file=key, cover=cover_key)
+    pin = Pin(
+        id=pin_id,
+        owner_id=user.id,
+        kind=kind,
+        title=title,
+        description=description,
+        file=key,
+        cover=cover_key,
+    )
     db.add(pin)
     await db.commit()
     return pin_data(pin, user)
@@ -167,14 +201,20 @@ async def unpublish_pin(material_id: str, db: SessionDep, user: Account):
 
 def collection_data(collection: PinCollection, owner: User) -> dict:
     return {
-        "id": collection.id, "title": collection.title, "description": collection.description,
-        "public": collection.public, "owner": public_user(owner),
+        "id": collection.id,
+        "title": collection.title,
+        "description": collection.description,
+        "public": collection.public,
+        "owner": public_user(owner),
     }
 
 
 async def get_collection(db: SessionDep, key: str, viewer: Viewer, editing: bool = False):
-    query = (select(PinCollection, User).join(User, PinCollection.owner_id == User.id)
-             .where(PinCollection.id == key, ~User.blocked, ~User.deleted))
+    query = (
+        select(PinCollection, User)
+        .join(User, PinCollection.owner_id == User.id)
+        .where(PinCollection.id == key, ~User.blocked, ~User.deleted)
+    )
     if editing:
         query = query.with_for_update(of=PinCollection)
     row = (await db.execute(query)).one_or_none()
@@ -185,14 +225,20 @@ async def get_collection(db: SessionDep, key: str, viewer: Viewer, editing: bool
 
 
 @router.get("/profiles/{username}/pin-collections")
-async def profile_collections(username: str, db: SessionDep, viewer: Viewer,
-                              offset: Offset = 0, limit: Limit = 24):
+async def profile_collections(
+    username: str, db: SessionDep, viewer: Viewer, offset: Offset = 0, limit: Limit = 24
+):
     owner = await profile_user(db, username)
     query = select(PinCollection).where(PinCollection.owner_id == owner.id)
     if not viewer or viewer.id != owner.id:
         query = query.where(PinCollection.public)
-    rows = (await db.scalars(query.order_by(PinCollection.created_at.desc(), PinCollection.id.desc())
-                            .offset(offset).limit(limit + 1))).all()
+    rows = (
+        await db.scalars(
+            query.order_by(PinCollection.created_at.desc(), PinCollection.id.desc())
+            .offset(offset)
+            .limit(limit + 1)
+        )
+    ).all()
     return page([collection_data(collection, owner) for collection in rows], offset, limit)
 
 
@@ -205,21 +251,33 @@ async def create_collection(data: CollectionInput, db: SessionDep, user: Account
 
 
 @router.get("/pin-collections/{key}")
-async def collection_detail(key: str, db: SessionDep, user: Viewer,
-                            offset: Offset = 0, limit: Limit = 24):
+async def collection_detail(
+    key: str, db: SessionDep, user: Viewer, offset: Offset = 0, limit: Limit = 24
+):
     collection, owner = await get_collection(db, key, user)
-    rows = (await db.execute(
-        select(CollectionPin, Pin, User)
-        .outerjoin(Pin, CollectionPin.pin_id == Pin.id).outerjoin(User, Pin.owner_id == User.id)
-        .where(CollectionPin.collection_id == key,
-               or_(CollectionPin.catalog_id.is_not(None), ~User.blocked & ~User.deleted))
-        .order_by(CollectionPin.created_at.desc(), CollectionPin.id.desc())
-        .offset(offset).limit(limit + 1)
-    )).all()
+    rows = (
+        await db.execute(
+            select(CollectionPin, Pin, User)
+            .outerjoin(Pin, CollectionPin.pin_id == Pin.id)
+            .outerjoin(User, Pin.owner_id == User.id)
+            .where(
+                CollectionPin.collection_id == key,
+                or_(CollectionPin.catalog_id.is_not(None), ~User.blocked & ~User.deleted),
+            )
+            .order_by(CollectionPin.created_at.desc(), CollectionPin.id.desc())
+            .offset(offset)
+            .limit(limit + 1)
+        )
+    ).all()
     catalog = catalog_items() if any(entry.catalog_id for entry, _, _ in rows) else {}
     items = [
-        {"id": entry.id, "material_id": entry.catalog_id or f"{PIN_PREFIX}{pin.id}",
-         "material": catalog.get(entry.catalog_id) if entry.catalog_id else pin_data(pin, author)}
+        {
+            "id": entry.id,
+            "material_id": entry.catalog_id or f"{PIN_PREFIX}{pin.id}",
+            "material": catalog.get(entry.catalog_id)
+            if entry.catalog_id
+            else pin_data(pin, author),
+        }
         for entry, pin, author in rows
     ]
     return {"collection": collection_data(collection, owner), **page(items, offset, limit)}
@@ -228,7 +286,11 @@ async def collection_detail(key: str, db: SessionDep, user: Viewer,
 @router.put("/pin-collections/{key}")
 async def update_collection(key: str, data: CollectionInput, db: SessionDep, user: Account):
     collection, owner = await get_collection(db, key, user, editing=True)
-    collection.title, collection.description, collection.public = data.title, data.description, data.public
+    collection.title, collection.description, collection.public = (
+        data.title,
+        data.description,
+        data.public,
+    )
     await db.commit()
     return collection_data(collection, owner)
 
@@ -251,8 +313,9 @@ async def add_to_collection(key: str, material_id: str, db: SessionDep, user: Ac
     else:
         raise HTTPException(404, "Пин недоступен")
     try:
-        await db.execute(insert(CollectionPin).values(collection_id=key, **reference)
-                         .on_conflict_do_nothing())
+        await db.execute(
+            insert(CollectionPin).values(collection_id=key, **reference).on_conflict_do_nothing()
+        )
         await db.commit()
     except IntegrityError as exc:
         raise HTTPException(404, "Пин недоступен") from exc
@@ -261,7 +324,10 @@ async def add_to_collection(key: str, material_id: str, db: SessionDep, user: Ac
 @router.delete("/pin-collections/{key}/pins/{entry_id}", status_code=204)
 async def remove_from_collection(key: str, entry_id: str, db: SessionDep, user: Account):
     await get_collection(db, key, user, editing=True)
-    await db.execute(delete(CollectionPin).where(
-        CollectionPin.collection_id == key, CollectionPin.id == entry_id,
-    ))
+    await db.execute(
+        delete(CollectionPin).where(
+            CollectionPin.collection_id == key,
+            CollectionPin.id == entry_id,
+        )
+    )
     await db.commit()

@@ -8,9 +8,9 @@ const pageSize = 34
 
 export type ResultProgress = { ids: string[]; limit: number }
 
-export function Results({ candidates, featured, ordered, eclectic, seed, watch, live, saved, playing, history, historyKey,
+export function Results({ candidates, featured, ordered, eclectic, newest, seed, watch, live, saved, playing, history, historyKey,
   onProgress, onOpen, onSave, onPreview, onSignal }: {
-  candidates: Material[]; featured?: ReactNode; ordered: boolean; eclectic: boolean; seed: number; watch: boolean
+  candidates: Material[]; featured?: ReactNode; ordered: boolean; eclectic: boolean; newest: Material[]; seed: number; watch: boolean
   live: RefObject<Library>; saved: string[]; playing: string | null
   history: RefObject<Map<string, ResultProgress>>; historyKey: string
   onProgress: (progress: ResultProgress) => void
@@ -19,7 +19,9 @@ export function Results({ candidates, featured, ordered, eclectic, seed, watch, 
 }) {
   const sentinel = useRef<HTMLDivElement>(null)
   const [progress, setProgress] = useState(() => history.current.get(historyKey) ?? {
-    ids: ordered ? [] : recommendBatch(candidates, live.current, pageSize, 0, eclectic, seed).map((item) => item.id),
+    ids: ordered ? [] : [...newest, ...recommendBatch(
+      candidates.filter((candidate) => !newest.includes(candidate)), live.current, pageSize - newest.length, 0, eclectic, seed,
+    )].map((item) => item.id),
     limit: pageSize,
   })
   const indexed = useMemo(() => new Map(candidates.map((item) => [item.id, item])), [candidates])

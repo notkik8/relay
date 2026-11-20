@@ -21,10 +21,10 @@ export function useFeed(mode: 'public' | 'following' | 'mine', enabled = true) {
   })
 }
 
-export function usePage<T>(name: string, url: string, enabled = true) {
+export function usePage<T, Result extends Page<T> = Page<T>>(name: string, url: string, enabled = true) {
   return useInfiniteQuery({
     queryKey: [name, url],
-    queryFn: ({ signal, pageParam }) => api<Page<T>>(
+    queryFn: ({ signal, pageParam }) => api<Result>(
       `${url}${url.includes('?') ? '&' : '?'}offset=${pageParam}`, { signal },
     ),
     initialPageParam: 0,

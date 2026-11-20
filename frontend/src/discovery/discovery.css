@@ -108,6 +108,7 @@
   transition: background-color 300ms var(--ease-out), color 300ms var(--ease-out);
 }
 .relay-main-nav a[aria-current="page"] { color: var(--green); background: var(--tint); font-weight: 700; }
+.relay-main-nav a:has(svg):not(:has(span)), .relay-main-nav a:has(.avatar) { width: 2.75rem; padding: 0; justify-content: center; }
 .relay-nav-settings { width: 2.75rem; justify-content: center; padding: 0; }
 .relay-main-nav a:hover, .relay-nav-settings:hover { background: var(--tint); color: var(--green); }
 .relay-board { width: var(--content-width); margin: 0 auto; padding: 1.5rem 0 4rem; outline: 0; container-type: inline-size; }
@@ -119,6 +120,8 @@
   font-weight: 700;
 }
 .relay-board-head p { color: var(--subtle); font-size: .875rem; font-weight: 500; line-height: 1.25rem; margin-top: .5rem; }
+.relay-pin-author { display: inline-flex; align-items: center; gap: .5rem; align-self: start; font-size: .9rem; font-weight: 650; }
+.relay-detail-art video { width: 100%; height: 100%; max-height: var(--relay-art-max-height, 65dvh); object-fit: contain; background: #141915; }
 .relay-icon, .relay-quiet, .relay-primary {
   display: inline-flex;
   gap: .5rem;
@@ -535,10 +538,12 @@ html:has(.relay-sheet[open]) { overflow: hidden; scrollbar-gutter: stable; }
 }
 @media (max-width: 44rem) {
   .relay-discovery { --gutter: .75rem; }
-  .relay-top-inner { grid-template-columns: minmax(0, 1fr) auto; gap: .5rem 1rem; padding-inline: .75rem; }
+  .relay-top-inner { grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; padding-inline: .5rem; }
   .relay-search { grid-column: 1 / -1; grid-row: 2; height: 2.75rem; }
   .relay-main-nav { grid-column: 2; grid-row: 1; }
-  .relay-main-nav a { padding-inline: .5rem; }
+  .relay-main-nav { gap: .125rem; }
+  .relay-main-nav a { width: 2.75rem; justify-content: center; padding: 0; }
+  .relay-main-nav a > span:not(.avatar) { display: none; }
   .relay-board { padding-top: 1rem; }
   .relay-board-head h1, .relay-detail-info h1 { font-size: 1.875rem; line-height: 2.25rem; }
   .relay-detail-grid, .relay-detail-footer { grid-template-columns: minmax(0, 1fr); }
@@ -551,10 +556,6 @@ html:has(.relay-sheet[open]) { overflow: hidden; scrollbar-gutter: stable; }
   .relay-album-copy { left: .75rem; bottom: .75rem; }
   .relay-album-copy strong { font-size: 1rem; line-height: 1.25rem; }
   .relay-notice { inset-inline: 1rem; margin-inline: auto; }
-}
-@media (max-width: 20rem) {
-  .relay-main-nav a { width: 2.75rem; justify-content: center; }
-  .relay-main-nav a span { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .relay-sheet[open] { animation: none; }

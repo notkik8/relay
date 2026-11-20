@@ -101,7 +101,9 @@ async def register(data: Registration, db: SessionDep):
     if await db.scalar(select(User.id).where(User.username == username)):
         raise HTTPException(409, "Этот ник уже занят")
     if verification and verification.expires_at > datetime.now(UTC):
-        raise HTTPException(409, "Регистрация уже начата. Проверьте почту или запросите новое письмо.")
+        raise HTTPException(
+            409, "Регистрация уже начата. Проверьте почту или запросите новое письмо."
+        )
     if verification is None:
         verification = EmailVerification(email=email)
         db.add(verification)
@@ -144,12 +146,16 @@ async def verify(data: VerificationInput, db: SessionDep, request: Request, resp
     if user and (user.blocked or user.deleted or user.email_verified_at):
         raise HTTPException(410, "Ссылка устарела. Войдите в аккаунт или запросите новое письмо.")
     password_hash = user.password if user else verification.password
-    if not password_hash or not await run_in_threadpool(passwords.verify, data.password, password_hash):
+    if not password_hash or not await run_in_threadpool(
+        passwords.verify, data.password, password_hash
+    ):
         raise HTTPException(401, "Неверный пароль")
     if user is None:
         user = User(
-            email=verification.email, username=verification.username,
-            name=verification.username, password=password_hash,
+            email=verification.email,
+            username=verification.username,
+            name=verification.username,
+            password=password_hash,
         )
         db.add(user)
     user.email_verified_at = now
@@ -160,7 +166,9 @@ async def verify(data: VerificationInput, db: SessionDep, request: Request, resp
         await db.rollback()
         # The handle may have been claimed by another signup while this link was pending.
         await db.execute(
-            delete(EmailVerification).where(EmailVerification.token_hash == session_hash(data.token))
+            delete(EmailVerification).where(
+                EmailVerification.token_hash == session_hash(data.token)
+            )
         )
         await db.commit()
         raise HTTPException(409, "Почта или ник уже заняты. Начните регистрацию заново.") from exc
@@ -173,7 +181,8 @@ async def login(data: Credentials, db: SessionDep, request: Request, response: R
     user = await db.scalar(select(User).where(User.email == email))
     verification = None if user else await db.get(EmailVerification, email)
     valid = await run_in_threadpool(
-        passwords.verify, data.password,
+        passwords.verify,
+        data.password,
         (user.password if user else verification.password if verification else None) or dummy_hash,
     )
     if not valid or (user and (user.blocked or user.deleted)):

@@ -8,7 +8,7 @@ export default defineConfig({
   server: {
     // В режиме разработки запросы к API проксируются на FastAPI
     proxy: {
-      '/api': 'http://127.0.0.1:8000',
+      '/api': { target: 'http://127.0.0.1:8000', changeOrigin: false },
     },
   },
 })

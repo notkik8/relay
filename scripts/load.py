@@ -8,6 +8,8 @@ import argparse
 import asyncio
 import json
 import math
+import os
+import re
 import secrets
 import time
 from pathlib import Path
@@ -37,15 +39,27 @@ async def run(args):
         timeout=12,
     ) as client:
         username = f"load_{secrets.token_hex(4)}"
+        email = f"{username}@example.org"
+        password = secrets.token_urlsafe(24)
         response = await client.post(
             "/accounts",
-            json={
-                "username": username,
-                "email": f"{username}@example.org",
-                "password": secrets.token_urlsafe(24),
-            },
+            json={"username": username, "email": email, "password": password},
         )
         response.raise_for_status()
+        mailbox = os.getenv("RELAY_MAILPIT_URL", "http://127.0.0.1:8025").rstrip("/")
+        search = await client.get(f"{mailbox}/api/v1/search", params={"query": f"to:{email}"})
+        search.raise_for_status()
+        messages = search.json()["messages"]
+        if not messages:
+            raise RuntimeError("Verification email missing from the local Mailpit inbox")
+        message = await client.get(f"{mailbox}/api/v1/message/{messages[0]['ID']}")
+        message.raise_for_status()
+        token = re.search(r"/verify-email#([A-Za-z0-9_-]{43})", message.json()["Text"])
+        if token is None:
+            raise RuntimeError("Missing verification link in the email")
+        (await client.post(
+            "/accounts/verify", json={"token": token[1], "password": password},
+        )).raise_for_status()
         response = await client.post(
             "/boards", json={"title": "Нагрузочная проверка", "visibility": "private"}
         )

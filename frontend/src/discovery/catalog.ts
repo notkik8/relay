@@ -60,6 +60,7 @@ export function searchable(material: Material) {
 }
 
 export function displayTitle(material: Material) {
+  if (material.author) return material.title
   const short = material.title.replace(/\.(?:jpe?g|png|webp|oga|ogg|mp3|flac)$/i, '')
     .replace(/_/g, ' ').trim()
   return short || kindNames[material.kind]

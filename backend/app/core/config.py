@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
     media_root: Path = Path("./media")
     max_upload_mb: int = 10
-    discovery_catalog: Path = Path(__file__).resolve().parents[3] / "frontend/public/discovery/catalog.json"
+    discovery_catalog: Path = (
+        Path(__file__).resolve().parents[3] / "frontend/public/discovery/catalog.json"
+    )
     relay_public_url: HttpUrl = HttpUrl("http://127.0.0.1:8080")
     smtp_host: str = ""
     smtp_port: int = 587

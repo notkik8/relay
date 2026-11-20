@@ -2,6 +2,7 @@ import asyncio
 import io
 import os
 from contextlib import AsyncExitStack
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -11,11 +12,13 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.api.routers.accounts import passwords
+from app.api.routers.pins import catalog_items
 from app.core.config import get_settings
 from app.db.session import get_session
 from app.main import app
 from app.models import Base
-from app.models.entities import Item, Media, User
+from app.models.entities import EmailVerification, Item, Media, User
+from app.services import mail
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("RELAY_TEST_DATABASE_URL"),
@@ -45,6 +48,9 @@ async def relay(tmp_path, monkeypatch):
 
     monkeypatch.setattr(get_settings(), "media_root", tmp_path)
     monkeypatch.setattr(get_settings(), "catalog_demo", True)
+    monkeypatch.setattr(get_settings(), "smtp_host", "smtp.test")
+    inbox = {}
+    monkeypatch.setattr(mail, "send_verification", inbox.__setitem__)
     monkeypatch.setitem(app.dependency_overrides, get_session, session)
     try:
         async with engine.begin() as connection:
@@ -57,15 +63,21 @@ async def relay(tmp_path, monkeypatch):
                 for key in ("guest", "owner", "editor", "reader", "admin")
             }
             for key in ("owner", "editor", "reader"):
+                email = f"{key}@example.org"
                 response = await accounts[key].post(
                     "/api/v1/accounts",
                     json={
                         "username": key,
-                        "email": f"{key}@example.org",
+                        "email": email,
                         "password": PASSWORD,
                     },
                 )
                 assert response.status_code == 201, response.text
+                response = await accounts[key].post(
+                    "/api/v1/accounts/verify",
+                    json={"token": inbox[email], "password": PASSWORD},
+                )
+                assert response.status_code == 200, response.text
             async with sessions() as db:
                 db.add(
                     User(
@@ -73,6 +85,7 @@ async def relay(tmp_path, monkeypatch):
                         email="admin@example.org",
                         name="Moderator",
                         password=passwords.hash(PASSWORD),
+                        email_verified_at=datetime.now(UTC),
                         admin=True,
                     )
                 )
@@ -80,7 +93,7 @@ async def relay(tmp_path, monkeypatch):
             response = await accounts["admin"].post(
                 "/api/v1/sessions",
                 json={
-                    "login": "admin",
+                    "email": "admin@example.org",
                     "password": PASSWORD,
                 },
             )
@@ -115,6 +128,83 @@ def png():
     content = io.BytesIO()
     Image.new("RGB", (2, 2), "#123456").save(content, format="PNG")
     return content.getvalue()
+
+
+async def test_email_confirmation_required_expires_and_is_single_use(relay, monkeypatch):
+    clients, sessions = relay
+    guest = clients["guest"]
+    inbox = {}
+    monkeypatch.setattr(mail, "send_verification", inbox.__setitem__)
+    email = "new@example.org"
+    credentials = {"email": email, "password": PASSWORD}
+    response = await guest.post("/api/v1/accounts", json={**credentials, "username": "new_user"})
+    assert response.status_code == 201
+    assert "set-cookie" not in response.headers
+    assert (await guest.get("/api/v1/profiles/new_user")).status_code == 404
+    assert (await guest.post("/api/v1/sessions", json=credentials)).status_code == 403
+    assert (await guest.post("/api/v1/accounts/verification", json=credentials)).status_code == 429
+    token = inbox[email]
+    async with sessions() as db:
+        verification = await db.get(EmailVerification, email)
+        verification.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        verification.sent_at -= timedelta(minutes=2)
+        await db.commit()
+    verify = "/api/v1/accounts/verify"
+    assert (
+        await guest.post(verify, json={"token": token, "password": PASSWORD})
+    ).status_code == 410
+    assert (await guest.post("/api/v1/accounts/verification", json=credentials)).status_code == 200
+    assert inbox[email] != token
+    payload = {"token": inbox[email], "password": PASSWORD}
+    assert (await guest.post(verify, json={**payload, "password": "incorrect"})).status_code == 401
+    responses = await asyncio.gather(
+        guest.post(verify, json=payload), guest.post(verify, json=payload)
+    )
+    assert sorted(response.status_code for response in responses) == [200, 410]
+    assert (await guest.get("/api/v1/accounts/me")).json()["email"] == email
+    public = (await guest.get("/api/v1/profiles/new_user")).json()["user"]
+    assert public["username"] == "new_user" and "email" not in public
+    assert (await guest.delete("/api/v1/sessions/current")).status_code == 204
+    assert (await guest.post("/api/v1/sessions", json=credentials)).status_code == 200
+
+
+async def test_public_pins_and_private_collections(relay):
+    clients, _ = relay
+    guest, owner, reader = (clients[key] for key in ("guest", "owner", "reader"))
+    upload = {
+        "data": {"kind": "image", "title": "Песчаные дюны", "description": "Снимок с берега"},
+        "files": {"file": ("image.png", png(), "image/png")},
+    }
+    assert (await guest.post("/api/v1/pins", **upload)).status_code == 401
+    posted = await owner.post("/api/v1/pins", **upload)
+    assert posted.status_code == 201, posted.text
+    pin = posted.json()
+    assert pin["author"]["username"] == "owner" and "email" not in pin["author"]
+    assert (await guest.get(pin["thumbnail"])).headers["content-type"] == "image/webp"
+    searched = await guest.get("/api/v1/pins", params={"q": "дюны"})
+    assert searched.json()["items"][0]["id"] == pin["id"]
+    assert (await guest.get("/api/v1/profiles/owner/pins")).json()["items"][0]["id"] == pin["id"]
+    full_pin = f"/api/v1/pins/{pin['id']}"
+    assert (await reader.delete(full_pin)).status_code == 403
+    result = await owner.post("/api/v1/pin-collections", json={"title": "Идеи"})
+    assert result.status_code == 201 and not result.json()["public"]
+    folder = f"/api/v1/pin-collections/{result.json()['id']}"
+    uploaded_entry = f"{folder}/pins/{pin['id']}"
+    catalog_id = next(iter(catalog_items()))
+    catalog_entry = f"{folder}/pins/{catalog_id}"
+    assert (await guest.get(folder)).status_code == 404
+    assert (await reader.put(uploaded_entry)).status_code == 404
+    for entry in (uploaded_entry, uploaded_entry, catalog_entry):
+        assert (await owner.put(entry)).status_code == 204
+    assert len((await owner.get(folder)).json()["items"]) == 2
+    assert (await owner.put(folder, json={"title": "Фото", "public": True})).status_code == 200
+    items = (await guest.get(folder)).json()["items"]
+    assert {item["material"]["id"] for item in items} == {pin["id"], catalog_id}
+    assert (await owner.delete(full_pin)).status_code == 204
+    assert (await guest.get(pin["thumbnail"])).status_code == 404
+    assert len((await guest.get(folder)).json()["items"]) == 1
+    assert (await owner.delete(folder)).status_code == 204
+    assert (await guest.get(folder)).status_code == 404
 
 
 async def test_board_rights_private_files_editors_and_version(relay):
@@ -257,7 +347,9 @@ async def test_follow_likes_comments_copy_and_moderation(relay):
     ).status_code == 204
     assert (await reader.get("/api/v1/accounts/me")).json() is None
     assert (
-        await reader.post("/api/v1/sessions", json={"login": "reader", "password": PASSWORD})
+        await reader.post(
+            "/api/v1/sessions", json={"email": "reader@example.org", "password": PASSWORD}
+        )
     ).status_code == 401
 
 

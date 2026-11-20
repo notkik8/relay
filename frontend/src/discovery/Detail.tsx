@@ -10,13 +10,15 @@ import { displayTitle, kindNames, pinPath, topicNames, type Material } from './c
 import { MediaVisual } from './MaterialCard'
 import type { Library } from './recommend'
 
-export function Detail({ material, account, saved, hidden, audioRef, onSave, onPlay, onBack, onLess }: {
+export function Detail({ material, account, saved, hidden, audioRef, videoRef, onSave, onPlay, onBack, onLess }: {
   material: Material; account?: Account | null; saved: boolean; hidden: boolean; audioRef: RefObject<HTMLAudioElement | null>
+  videoRef: RefObject<HTMLVideoElement | null>
   onSave: (item: Material) => void; onPlay: () => void; onBack: () => void; onLess: () => void
 }) {
   const [shared, setShared] = useState(false)
   const [shareUrl, setShareUrl] = useState('')
   const [audioError, setAudioError] = useState(false)
+  const [videoError, setVideoError] = useState(false)
   const title = displayTitle(material)
   const ratio = material.kind === 'track' ? 1.27 : Math.min(2.4, Math.max(.45, material.ratio))
   const share = async () => {
@@ -29,8 +31,8 @@ export function Detail({ material, account, saved, hidden, audioRef, onSave, onP
     <button type="button" className="relay-back" onClick={onBack}><ArrowLeft size={18} /> Назад</button>
     <article className={ratio < 1 ? 'relay-detail-grid relay-detail-portrait' : 'relay-detail-grid'} aria-labelledby="pin-title">
       <div className="relay-detail-art" style={{ '--relay-detail-ratio': ratio } as CSSProperties}>
-        {material.video ? <video controls playsInline preload="metadata" src={material.video}
-          poster={material.image ?? undefined} onPlay={onPlay} aria-label={`Воспроизвести ${title}`} />
+        {material.video ? <video ref={videoRef} controls playsInline preload="metadata" src={material.video}
+          poster={material.image ?? undefined} onPlay={onPlay} onError={() => setVideoError(true)} aria-label={`Воспроизвести ${title}`} />
           : <MediaVisual material={material} details />}
       </div>
       <div className="relay-detail-info">
@@ -48,6 +50,7 @@ export function Detail({ material, account, saved, hidden, audioRef, onSave, onP
           {audioError && <p role="status">{material.author ? 'Не удалось воспроизвести аудио.' : 'Запись можно открыть на странице источника.'}</p>}
         </div>}
         {material.description && material.description !== material.title && <p className="relay-detail-description">{material.description}</p>}
+        {videoError && <p role="status">Не удалось воспроизвести видео.</p>}
         <div className="relay-detail-actions">
           <button type="button" className="relay-primary" aria-pressed={saved} onClick={() => onSave(material)}>
             {saved ? <Check size={16} /> : <Bookmark size={16} />}{saved ? 'Сохранено' : 'Сохранить'}
@@ -70,9 +73,9 @@ export function Detail({ material, account, saved, hidden, audioRef, onSave, onP
           {material.source && <a href={material.source} target="_blank" rel="noopener noreferrer">
             {material.author ? 'Оригинал' : 'Источник'} <ExternalLink size={13} />
           </a>}
-          {material.licenseUrl
+          {material.license && (material.licenseUrl
             ? <a href={material.licenseUrl} target="_blank" rel="noopener noreferrer">{material.license}</a>
-            : <span>{material.license}</span>}
+            : <span>{material.license}</span>)}
           {(material.credit || material.originalTitle) && <span className="relay-credit">
             {[material.originalTitle, material.credit].filter(Boolean).join(' · ')}
           </span>}
