@@ -13,7 +13,7 @@ from app.api.routers.accounts import passwords
 from app.db.session import SessionLocal, engine
 from app.integrations.catalog import demo_entries
 from app.models.entities import Board, Comment, Item, Media, User
-from app.schemas.inputs import Registration
+from app.schemas.inputs import Credentials
 
 BOARDS = (
     (
@@ -90,20 +90,13 @@ async def demo(large: bool):
             ("misha", "Миша Волков", "Ночной город и любимые пластинки."),
             ("lena", "Лена Орлова", "В поисках уютного кино."),
         ]:
-            person = await db.scalar(
-                select(User).where(User.email == f"{username}@demo.relay.test")
-            )
+            person = await db.scalar(select(User).where(User.username == username))
             if person is None:
-                handle = username
-                while await db.scalar(select(User.id).where(User.username == handle)):
-                    handle = f"{username}_{token_urlsafe(4).replace('-', '_').lower()}"
                 person = User(
-                    username=handle,
+                    username=username,
                     name=name,
                     bio=bio,
-                    email=f"{username}@demo.relay.test",
                     password=passwords.hash(token_urlsafe()),
-                    email_verified_at=datetime.now(UTC),
                 )
                 db.add(person)
                 await db.flush()
@@ -177,20 +170,15 @@ async def demo(large: bool):
         await db.commit()
 
 
-async def administrator(email: str, username: str, password: str):
-    data = Registration(email=email, username=username, password=password)
+async def administrator(username: str, password: str):
+    username = Credentials(username=username, password=password).username.lower()
+    if len(password) < 15:
+        raise SystemExit("Пароль должен содержать не менее 15 символов")
     async with SessionLocal() as db:
-        if await db.scalar(select(User.id).where(User.username == username.lower())):
+        if await db.scalar(select(User.id).where(User.username == username)):
             raise SystemExit("Имя пользователя уже существует")
         db.add(
-            User(
-                email=data.email.lower(),
-                username=username.lower(),
-                name=username,
-                password=passwords.hash(password),
-                email_verified_at=datetime.now(UTC),
-                admin=True,
-            )
+            User(username=username, name=username, password=passwords.hash(password), admin=True)
         )
         await db.commit()
 
@@ -201,7 +189,6 @@ async def run(args):
             await demo(args.large)
         else:
             await administrator(
-                args.email,
                 args.username,
                 os.environ.get("RELAY_ADMIN_PASSWORD") or getpass("Пароль администратора: "),
             )
@@ -214,6 +201,5 @@ if __name__ == "__main__":
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("demo").add_argument("--large", action="store_true")
     admin = sub.add_parser("admin")
-    admin.add_argument("email")
     admin.add_argument("username")
     asyncio.run(run(parser.parse_args()))

@@ -2,7 +2,6 @@ import asyncio
 import io
 import os
 from contextlib import AsyncExitStack
-from datetime import UTC, datetime, timedelta
 from functools import partial
 from uuid import uuid4
 
@@ -19,8 +18,8 @@ from app.core.config import get_settings
 from app.db.session import get_session
 from app.main import app
 from app.models import Base
-from app.models.entities import EmailVerification, Item, Media, User
-from app.services import mail, turnstile
+from app.models.entities import Item, Media, User
+from app.services import turnstile
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("RELAY_TEST_DATABASE_URL"),
@@ -50,9 +49,6 @@ async def relay(tmp_path, monkeypatch):
 
     monkeypatch.setattr(get_settings(), "media_root", tmp_path)
     monkeypatch.setattr(get_settings(), "catalog_demo", True)
-    monkeypatch.setattr(get_settings(), "smtp_host", "smtp.test")
-    inbox = {}
-    monkeypatch.setattr(mail, "send_verification", inbox.__setitem__)
     monkeypatch.setitem(app.dependency_overrides, get_session, session)
     try:
         async with engine.begin() as connection:
@@ -64,42 +60,22 @@ async def relay(tmp_path, monkeypatch):
                 )
                 for key in ("guest", "owner", "editor", "reader", "admin")
             }
-            for key in ("owner", "editor", "reader"):
-                email = f"{key}@example.org"
-                response = await accounts[key].post(
-                    "/api/v1/accounts",
-                    json={
-                        "username": key,
-                        "email": email,
-                        "password": PASSWORD,
-                    },
-                )
-                assert response.status_code == 201, response.text
-                response = await accounts[key].post(
-                    "/api/v1/accounts/verify",
-                    json={"token": inbox[email], "password": PASSWORD},
-                )
-                assert response.status_code == 200, response.text
             async with sessions() as db:
-                db.add(
+                db.add_all(
                     User(
-                        username="admin",
-                        email="admin@example.org",
-                        name="Moderator",
+                        username=key,
+                        name=key,
                         password=passwords.hash(PASSWORD),
-                        email_verified_at=datetime.now(UTC),
-                        admin=True,
+                        admin=key == "admin",
                     )
+                    for key in ("owner", "editor", "reader", "admin")
                 )
                 await db.commit()
-            response = await accounts["admin"].post(
-                "/api/v1/sessions",
-                json={
-                    "email": "admin@example.org",
-                    "password": PASSWORD,
-                },
-            )
-            assert response.status_code == 200, response.text
+            for key in ("owner", "editor", "reader", "admin"):
+                response = await accounts[key].post(
+                    "/api/v1/sessions", json={"username": key, "password": PASSWORD}
+                )
+                assert response.status_code == 200, response.text
             yield accounts, sessions
     finally:
         await engine.dispose()
@@ -132,44 +108,6 @@ def png():
     return content.getvalue()
 
 
-async def test_email_confirmation_required_expires_and_is_single_use(relay, monkeypatch):
-    clients, sessions = relay
-    guest = clients["guest"]
-    inbox = {}
-    monkeypatch.setattr(mail, "send_verification", inbox.__setitem__)
-    email = "new@example.org"
-    credentials = {"email": email, "password": PASSWORD}
-    response = await guest.post("/api/v1/accounts", json={**credentials, "username": "new_user"})
-    assert response.status_code == 201
-    assert "set-cookie" not in response.headers
-    assert (await guest.get("/api/v1/profiles/new_user")).status_code == 404
-    assert (await guest.post("/api/v1/sessions", json=credentials)).status_code == 403
-    assert (await guest.post("/api/v1/accounts/verification", json=credentials)).status_code == 429
-    token = inbox[email]
-    async with sessions() as db:
-        verification = await db.get(EmailVerification, email)
-        verification.expires_at = datetime.now(UTC) - timedelta(seconds=1)
-        verification.sent_at -= timedelta(minutes=2)
-        await db.commit()
-    verify = "/api/v1/accounts/verify"
-    assert (
-        await guest.post(verify, json={"token": token, "password": PASSWORD})
-    ).status_code == 410
-    assert (await guest.post("/api/v1/accounts/verification", json=credentials)).status_code == 200
-    assert inbox[email] != token
-    payload = {"token": inbox[email], "password": PASSWORD}
-    assert (await guest.post(verify, json={**payload, "password": "incorrect"})).status_code == 401
-    responses = await asyncio.gather(
-        guest.post(verify, json=payload), guest.post(verify, json=payload)
-    )
-    assert sorted(response.status_code for response in responses) == [200, 410]
-    assert (await guest.get("/api/v1/accounts/me")).json()["email"] == email
-    public = (await guest.get("/api/v1/profiles/new_user")).json()["user"]
-    assert public["username"] == "new_user" and "email" not in public
-    assert (await guest.delete("/api/v1/sessions/current")).status_code == 204
-    assert (await guest.post("/api/v1/sessions", json=credentials)).status_code == 200
-
-
 async def test_handle_signup_checks_turnstile_and_rotates_recovery_code(relay, monkeypatch):
     clients, _ = relay
     guest, second_session = clients["guest"], clients["reader"]
@@ -180,7 +118,7 @@ async def test_handle_signup_checks_turnstile_and_rotates_recovery_code(relay, m
         settings, "turnstile_secret_key", SecretStr("1x0000000000000000000000000000000AA")
     )
     config = "/api/v1/accounts/registration"
-    signup = "/api/v1/accounts/handle"
+    signup = "/api/v1/accounts"
     login = "/api/v1/sessions"
     credentials = {"username": "No_Mail", "password": PASSWORD}
     payload = {**credentials, "turnstile_token": "challenge-token"}
@@ -210,7 +148,7 @@ async def test_handle_signup_checks_turnstile_and_rotates_recovery_code(relay, m
     assert response.status_code == 201, response.text
     code = response.json()["recovery_code"]
     assert response.headers["cache-control"] == "no-store"
-    assert (await guest.get("/api/v1/accounts/me")).json()["email"] is None
+    assert (await guest.get("/api/v1/accounts/me")).json()["username"] == "no_mail"
     assert (await guest.post(signup, json={**payload, "username": "no_mail"})).status_code == 409
     assert (await second_session.post(login, json=credentials)).status_code == 200
 
@@ -407,9 +345,7 @@ async def test_follow_likes_comments_copy_and_moderation(relay):
     ).status_code == 204
     assert (await reader.get("/api/v1/accounts/me")).json() is None
     assert (
-        await reader.post(
-            "/api/v1/sessions", json={"email": "reader@example.org", "password": PASSWORD}
-        )
+        await reader.post("/api/v1/sessions", json={"username": "reader", "password": PASSWORD})
     ).status_code == 401
 
 

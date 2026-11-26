@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True)]
 Tags = Annotated[list[Annotated[Text, Field(min_length=1, max_length=40)]], Field(max_length=12)]
@@ -15,35 +15,22 @@ class Input(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class Registration(Input):
-    email: EmailStr
-    username: Handle
-    password: str = Field(min_length=8, max_length=128)
+NewPassword = Annotated[str, Field(min_length=15, max_length=128)]
 
 
 class Credentials(Input):
-    email: EmailStr
-    password: str = Field(min_length=1, max_length=128)
-
-
-class HandleCredentials(Input):
     username: Handle
     password: str = Field(min_length=1, max_length=128)
 
 
-class HandleRegistration(HandleCredentials):
-    password: str = Field(min_length=15, max_length=128)
+class Registration(Credentials):
+    password: NewPassword
     turnstile_token: str = Field(min_length=1, max_length=2048)
 
 
-class PasswordRecovery(HandleCredentials):
-    password: str = Field(min_length=15, max_length=128)
+class PasswordRecovery(Credentials):
+    password: NewPassword
     recovery_code: Text = Field(pattern=r"^[A-Za-z0-9_-]{32}$")
-
-
-class VerificationInput(Input):
-    token: str = Field(pattern=r"^[A-Za-z0-9_-]{43}$")
-    password: str = Field(min_length=1, max_length=128)
 
 
 class ProfilePatch(Input):

@@ -11,7 +11,6 @@ export interface Person {
 }
 
 export interface Account extends Person {
-  email: string | null
   admin: boolean
 }
 

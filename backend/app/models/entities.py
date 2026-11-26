@@ -16,13 +16,11 @@ class User(Base, TimestampMixin):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=identifier)
-    email: Mapped[str | None] = mapped_column(String(254), unique=True)
     username: Mapped[str] = mapped_column(String(32), unique=True)
     name: Mapped[str] = mapped_column(String(80))
     password: Mapped[str]
     bio: Mapped[str] = mapped_column(default="")
     avatar: Mapped[str | None]
-    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     recovery_code_hash: Mapped[str | None] = mapped_column(String(64))
     admin: Mapped[bool] = mapped_column(default=False)
     blocked: Mapped[bool] = mapped_column(default=False)
@@ -35,17 +33,6 @@ class LoginSession(Base):
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     expires: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-
-
-class EmailVerification(Base):
-    __tablename__ = "email_verifications"
-
-    email: Mapped[str] = mapped_column(String(254), primary_key=True)
-    username: Mapped[str | None] = mapped_column(String(32))
-    password: Mapped[str | None]
-    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
-    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class Pin(Base, TimestampMixin):

@@ -23,8 +23,6 @@ export default function App() {
     <Route path="login" element={<AuthPage key="login" />} />
     <Route path="register" element={<AuthPage key="register" mode="register" />} />
     <Route path="recover" element={<AuthPage key="recover" mode="recover" />} />
-    <Route path="verify-email" element={<AuthPage key="verify" mode="verify" />} />
-    <Route path="resend-email" element={<AuthPage key="resend" mode="resend" />} />
     <Route element={<Layout />}>
       <Route path="collections" element={<FeedPage />} />
       <Route path="following" element={<FeedPage mode="following" />} />

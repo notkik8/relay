@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Query, UploadFile
 from fastapi.responses import RedirectResponse
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app.api.deps import Account, SessionDep, Viewer
@@ -16,13 +16,16 @@ from app.schemas.inputs import (
     Destination,
     ImageImport,
     ItemPatch,
+    MediaKind,
     Reorder,
 )
 from app.services.boards import (
     append_item,
     board_details,
+    can_edit,
     edit_board,
     feed,
+    get_board,
     normalize_tags,
     page,
     view_board,
@@ -32,7 +35,6 @@ from app.services.images import file_response, retrieve_image, upload_image
 router = APIRouter(tags=["boards"])
 Offset = Annotated[int, Query(ge=0)]
 Limit = Annotated[int, Query(ge=1, le=60)]
-Kind = Literal["track", "film", "image"]
 
 
 @router.get("/feed")
@@ -165,7 +167,7 @@ async def items(
     user: Viewer,
     offset: Offset = 0,
     limit: Limit = 24,
-    kind: Kind | None = None,
+    kind: MediaKind | None = None,
     tag: str | None = None,
 ):
     board = await view_board(db, key, user)
@@ -229,8 +231,6 @@ async def add_catalog(
     tasks: BackgroundTasks,
 ):
     # Verify membership before contacting the external catalog, then check under the write lock.
-    from app.services.boards import can_edit, get_board
-
     board = await get_board(db, key)
     if not await can_edit(db, board, user):
         raise HTTPException(403, "У вас нет прав на это действие")
@@ -392,8 +392,8 @@ async def save_item(key: str, item_id: str, data: Destination, db: SessionDep, u
 
 @router.post("/boards/{key}/items/{item_id}/move")
 async def move_item(key: str, item_id: str, data: Destination, db: SessionDep, user: Account):
-    source = await edit_board_reference(db, key, user)
-    target = await edit_board_reference(db, data.board_id, user)
+    source = (await view_board(db, key, user)).id
+    target = (await view_board(db, data.board_id, user)).id
     if source == target:
         raise HTTPException(422, "Выберите другую подборку")
     locked = {
@@ -415,10 +415,6 @@ async def move_item(key: str, item_id: str, data: Destination, db: SessionDep, u
     return {"id": item.id}
 
 
-async def edit_board_reference(db: SessionDep, key: str, user: Account) -> str:
-    return (await view_board(db, key, user)).id
-
-
 @router.get("/boards/{key}/items/{item_id}/index")
 async def item_index(key: str, item_id: str, db: SessionDep, user: Viewer):
     board = await view_board(db, key, user)
@@ -427,9 +423,6 @@ async def item_index(key: str, item_id: str, db: SessionDep, user: Viewer):
         "index": await db.scalar(
             select(func.count())
             .select_from(Item)
-            .where(
-                Item.board_id == board.id,
-                or_(Item.position < item.position),
-            )
+            .where(Item.board_id == board.id, Item.position < item.position)
         )
     }

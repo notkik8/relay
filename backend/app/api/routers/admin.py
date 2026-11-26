@@ -144,7 +144,6 @@ async def moderate(
         target.blocked = data.action != "unblock"
         if data.action == "delete":
             target.deleted = True
-            target.email = f"{target.id}@deleted.invalid"
             target.name, target.bio, target.avatar, target.password = (
                 "Удалённый пользователь",
                 "",

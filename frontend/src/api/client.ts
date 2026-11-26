@@ -22,7 +22,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const data = await response.json().catch(() => null)
     const messages = Array.isArray(data?.detail) ? data.detail.map((item: { loc: string[] }) =>
-      ({ email: 'Проверьте адрес почты', password: 'Проверьте длину пароля',
+      ({ password: 'Проверьте длину пароля',
         username: 'Имя пользователя должно содержать 3–32 латинских символа, цифры или подчёркивания',
         tags: 'Укажите до 12 тегов, каждый длиной до 40 символов' })[String(item.loc?.[item.loc.length - 1])]
         ?? 'Проверьте введённые данные') : []

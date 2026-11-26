@@ -1,6 +1,5 @@
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
 
 from pydantic import HttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -25,12 +24,6 @@ class Settings(BaseSettings):
     relay_public_url: HttpUrl = HttpUrl("http://127.0.0.1:8080")
     turnstile_site_key: str = ""
     turnstile_secret_key: SecretStr = SecretStr("")
-    smtp_host: str = ""
-    smtp_port: int = 587
-    smtp_security: Literal["plain", "starttls", "tls"] = "starttls"
-    smtp_username: str = ""
-    smtp_password: SecretStr = SecretStr("")
-    smtp_from: str = "Relay <noreply@relay.test>"
     tmdb_api_key: str = ""
     tmdb_base_url: str = "https://api.themoviedb.org/3"
     deezer_base_url: str = "https://api.deezer.com"
